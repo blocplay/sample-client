@@ -1,0 +1,28 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: {{ template "PLAYShop.fullname" . }}
+  labels:
+    app: {{ template "PLAYShop.name" . }}
+    chart: {{ template "PLAYShop.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+{{- with .Values.ingress.annotations }}
+  annotations:
+{{ toYaml . | trim | indent 4 }}
+{{- end }}
+spec:
+{{- with .Values.ingress.tls }}
+  tls:
+{{ toYaml . | trim | indent 4 }}
+{{- end }}
+  rules:
+  {{- range .Values.ingress.hosts }}
+    - host: {{ . }}
+      http:
+        paths:
+          - path: {{ $.Values.ingress.path }}
+            backend:
+              serviceName: {{ template "PLAYShop.fullname" $ }}
+              servicePort: http
+  {{- end -}}

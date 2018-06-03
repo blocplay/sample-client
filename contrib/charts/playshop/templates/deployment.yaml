@@ -1,0 +1,97 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: {{ template "PLAYShop.fullname" . }}
+  labels:
+    app: {{ template "PLAYShop.name" . }}
+    chart: {{ template "PLAYShop.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ template "PLAYShop.name" . }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "PLAYShop.name" . }}
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: DEPLOYMENT_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: RAILS_ENV
+              value: production
+            - name: PORT
+              value: {{ .Values.service.port | quote }}
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "PLAYShop.fullname" . }}
+                  key: PLAYShop-secret-key
+            - name: tokenplay_WALLET_URL
+              value: {{ .Values.ewalletUrl | quote }}
+            - name: tokenplay_ACCESS_KEY
+              value: {{ .Values.ewalletAccessKey | quote }}
+            - name: tokenplay_SECRET_KEY
+              value: {{ .Values.ewalletSecretKey | quote }}
+          {{- if .Values.PLAYShopDbUrl | default "" | ne "" }}
+            - name: DATABASE_URL
+              value: {{ .Values.PLAYShopDbUrl | quote }}
+          {{- else if .Values.postgresql.enabled }}
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-postgresql
+                  key: postgresql-password
+            - name: DATABASE_URL
+              value: postgresql://{{ .Values.postgresql.postgresqlUser }}:$(DATABASE_PASSWORD)@{{ template "postgresql.host" . }}/{{ .Values.postgresql.postgresqlDb }}
+          {{- end }}
+          {{- if .Values.PLAYShopSentryDsn | default "" | ne "" }}
+            - name: SENTRY_DSN
+              value: {{ .Values.PLAYShopSentryDsn | quote }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: {{ .Values.service.livenessProbe.initialDelaySeconds }}
+            timeoutSeconds: {{ .Values.service.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.service.livenessProbe.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: {{ .Values.service.readinessProbe.initialDelaySeconds }}
+            timeoutSeconds: {{ .Values.service.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.service.readinessProbe.failureThreshold }}
+          resources:
+{{ toYaml .Values.resources | trim | indent 12 }}
+    {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+{{ toYaml . | trim | indent 8 }}
+    {{- end }}
+    {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | trim | indent 8 }}
+    {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | trim | indent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | trim | indent 8 }}
+    {{- end -}}
